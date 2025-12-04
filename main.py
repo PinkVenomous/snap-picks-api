@@ -49,6 +49,49 @@ def build_parlay(req: ParlayRequest):
         4: "76%",
         5: "70%",
     }
+
+
+from fastapi import Query
+
+@app.get("/parlay", response_model=ParlayResponse)
+async def parlay_get(
+    sport: str = Query("nfl", pattern="^(nfl|nba|mlb|nhl|cfb)$"),
+    style: str = Query("normal", pattern="^(safe|normal|spicy)$"),
+    legs: int = Query(3, ge=1, le=10),
+):
+    """
+    Convenience GET wrapper so you can call:
+    /parlay?sport=nfl&style=normal&legs=3
+    """
+    # build a fake legs list just for testing
+    from typing import List
+
+    legs_list: List[ParlayLeg] = []
+    for i in range(legs):
+        legs_list.append(ParlayLeg(team=f"Leg{i+1}", pick="ML"))
+
+    req = ParlayRequest(sport=sport, style=style, legs=legs_list)
+
+    # reuse the same logic as POST
+    return await parlay_endpoint(req)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     confidence = confidence_map.get(num_legs, "65%")
 
     note = f"Test-only parlay: {num_legs} legs for {req.sport}. No real odds used."
