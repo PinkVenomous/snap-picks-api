@@ -1,11 +1,10 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from pydantic import BaseModel
 from typing import List
 
 app = FastAPI()
 
-
-# ---------- Existing root endpoint ----------
+# ---------- Root endpoint ----------
 @app.get("/")
 def read_root():
     return {"message": "Snap Picks API is live"}
@@ -18,9 +17,9 @@ class ParlayLeg(BaseModel):
 
 
 class ParlayRequest(BaseModel):
-    sport: str          # e.g. "NFL"
+    sport: str                 # e.g. "nfl"
     legs: List[ParlayLeg]
-    style: str = "normal"  # "safe", "normal", "spicy"
+    style: str = "normal"      # "safe", "normal", "spicy"
 
 
 class ParlayResponse(BaseModel):
@@ -31,11 +30,10 @@ class ParlayResponse(BaseModel):
     note: str
 
 
-# ---------- New /parlay endpoint ----------
-@app.post("/parlay", response_model=ParlayResponse)
-def build_parlay(req: ParlayRequest):
+# ---------- Internal helper ----------
+def build_parlay_response(req: ParlayRequest) -> ParlayResponse:
     """
-    Very simple TEST endpoint for Snap Picks API.
+    Very simple TEST logic for Snap Picks API.
     It just echoes the request and adds a fake confidence value.
     """
 
@@ -50,56 +48,35 @@ def build_parlay(req: ParlayRequest):
         5: "70%",
     }
 
+    confidence = confidence_map.get(num_legs, "65%")
+    note = f"Test-only parlay: {num_legs} legs for {req.sport.upper()}. No real odds used."
 
-from fastapi import Query
+    return ParlayResponse(
+        sport=req.sport,
+        legs=req.legs,
+        style=req.style,
+        confidence=confidence,
+        note=note,
+    )
 
+
+# ---------- POST /parlay ----------
+@app.post("/parlay", response_model=ParlayResponse)
+async def parlay_post(req: ParlayRequest):
+    return build_parlay_response(req)
+
+
+# ---------- GET /parlay?sport=nfl&style=normal&legs=3 ----------
 @app.get("/parlay", response_model=ParlayResponse)
 async def parlay_get(
-    sport: str = Query("nfl", pattern="^(nfl|nba|mlb|nhl|cfb)$"),
-    style: str = Query("normal", pattern="^(safe|normal|spicy)$"),
+    sport: str = Query("nfl", regex="^(nfl|nba|mlb|nhl|cfb)$"),
+    style: str = Query("normal", regex="^(safe|normal|spicy)$"),
     legs: int = Query(3, ge=1, le=10),
 ):
-    """
-    Convenience GET wrapper so you can call:
-    /parlay?sport=nfl&style=normal&legs=3
-    """
     # build a fake legs list just for testing
-    from typing import List
-
     legs_list: List[ParlayLeg] = []
     for i in range(legs):
         legs_list.append(ParlayLeg(team=f"Leg{i+1}", pick="ML"))
 
     req = ParlayRequest(sport=sport, style=style, legs=legs_list)
-
-    # reuse the same logic as POST
-    return await parlay_endpoint(req)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    confidence = confidence_map.get(num_legs, "65%")
-
-    note = f"Test-only parlay: {num_legs} legs for {req.sport}. No real odds used."
-
-    return {
-        "sport": req.sport,
-        "legs": req.legs,
-        "style": req.style,
-        "confidence": confidence,
-        "note": note,
-    }
+    return build_parlay_response(req)
