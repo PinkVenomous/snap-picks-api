@@ -1,8 +1,25 @@
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
 app = FastAPI()
+
+# ---------- CORS so the website can call this API ----------
+origins = [
+    "https://snappickspro.com",
+    "https://www.snappickspro.com",
+    "http://localhost",           # for testing
+    "http://localhost:3000",      # for React / dev if you ever use it
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ---------- Root endpoint ----------
 @app.get("/")
@@ -10,7 +27,7 @@ def read_root():
     return {"message": "Snap Picks API is live"}
 
 
-# ---------- Models for /parlay ----------
+# ---------- Models ----------
 class ParlayLeg(BaseModel):
     team: str
     pick: str  # e.g. "ML", "Spread", etc.
@@ -30,16 +47,10 @@ class ParlayResponse(BaseModel):
     note: str
 
 
-# ---------- Internal helper ----------
+# ---------- Helper ----------
 def build_parlay_response(req: ParlayRequest) -> ParlayResponse:
-    """
-    Very simple TEST logic for Snap Picks API.
-    It just echoes the request and adds a fake confidence value.
-    """
-
     num_legs = len(req.legs)
 
-    # Totally fake confidence, just so we see something change.
     confidence_map = {
         1: "92%",
         2: "88%",
@@ -73,7 +84,6 @@ async def parlay_get(
     style: str = Query("normal", regex="^(safe|normal|spicy)$"),
     legs: int = Query(3, ge=1, le=10),
 ):
-    # build a fake legs list just for testing
     legs_list: List[ParlayLeg] = []
     for i in range(legs):
         legs_list.append(ParlayLeg(team=f"Leg{i+1}", pick="ML"))
